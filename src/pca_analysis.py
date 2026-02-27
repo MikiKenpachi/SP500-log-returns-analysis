@@ -524,50 +524,36 @@ def plot_sektorski_pc_prostor(loadings: pd.DataFrame,
 
 # ── Interpretacija ────────────────────────────────────────────────────────────
 
-def interpretiraj_faktore(loadings: pd.DataFrame,
-                           companies: pd.DataFrame,
-                           n_pc: int = 4,
-                           top_n: int = 5) -> None:
-    """
-    Tekstualna interpretacija finansijskih faktora na osnovu top loadings.
-
-    PC1 → "tržišni faktor": sve akcije imaju pozitivan loading
-          (sistematski se kreću u istom smeru, samo različitim intenzitetom)
-    PC2 → kontrastni faktor: neki sektori + neki - (sektorski kontrasti)
-    """
+def interpretiraj_faktore(loadings, companies, n_pc=4, top_n=5):
     df = loadings.copy()
     df.index.name = 'Symbol'
     df = df.reset_index().merge(
         companies[['Symbol', 'Sector']], on='Symbol', how='left')
 
-    print("=" * 60)
-    print("  INTERPRETACIJA FINANSIJSKIH FAKTORA")
-    print("=" * 60)
-
     for i in range(min(n_pc, loadings.shape[1])):
         pc = f'PC{i+1}'
-        ev = loadings[pc].var()
         print(f"\n{pc}:")
 
         top_pos = df.nlargest(top_n, pc)[['Symbol', 'Sector', pc]]
-        top_neg = df.nsmallest(top_n, pc)[['Symbol', 'Sector', pc]]
 
-        print(f"  Najveći + loadings (akcije koje RASTU sa ovim faktorom):")
+        # ✅ Samo akcije sa negativnim loadingom
+        neg_df = df[df[pc] < 0]
+        
+        print(f"  Najveći + loadings:")
         for _, row in top_pos.iterrows():
             print(f"    +{row[pc]:.4f}  {row['Symbol']:6s}  ({row['Sector']})")
 
-        print(f"  Najveći - loadings (akcije koje PADAJU sa ovim faktorom):")
-        for _, row in top_neg.iterrows():
-            print(f"     {row[pc]:.4f}  {row['Symbol']:6s}  ({row['Sector']})")
-
-        pos_sektori = top_pos['Sector'].value_counts().index[:2].tolist()
-        neg_sektori = top_neg['Sector'].value_counts().index[:2].tolist()
+        if len(neg_df) == 0:
+            print(f"  Nema negativnih loadinga – sve akcije se kreću u istom smeru (tržišni faktor)")
+        else:
+            top_neg = neg_df.nsmallest(top_n, pc)[['Symbol', 'Sector', pc]]
+            print(f"  Najveći - loadings:")
+            for _, row in top_neg.iterrows():
+                print(f"    {row[pc]:.4f}  {row['Symbol']:6s}  ({row['Sector']})")
 
         if i == 0:
-            print(f"\n  → PC1 = TRŽIŠNI FAKTOR: sve akcije reaguju zajedno "
-                  f"(sistemski rizik)")
+            print(f"\n  → PC1 = TRŽIŠNI FAKTOR: sve akcije reaguju zajedno (sistemski rizik)")
         else:
-            print(f"\n  → Kontrast: {', '.join(pos_sektori)} "
-                  f"vs {', '.join(neg_sektori)}")
-
-    print("=" * 60)
+            pos_sektori = top_pos['Sector'].value_counts().index[:2].tolist()
+            neg_sektori = neg_df.nsmallest(top_n, pc)['Sector'].value_counts().index[:2].tolist()
+            print(f"\n  → Kontrast: {', '.join(pos_sektori)} vs {', '.join(neg_sektori)}")
