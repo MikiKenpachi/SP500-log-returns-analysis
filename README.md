@@ -1,68 +1,87 @@
-Analiza i predikcija kratkoročnih logaritamskih prinosa S&P 500 indeksa
-Ovaj projekat predstavlja sveobuhvatnu analizu i modelovanje vremenskih serija S&P 500 indeksa. Fokus nije na direktnom predviđanju originalnih cena, već na logaritamskim prinosima (log-returns), koji su statistički stabilniji za modelovanje i ključni za procenu rizika u finansijama.
+📈 **Analiza i predikcija kratkoročnih logaritamskih prinosa S&P 500 indeksa**
 
-Autor: Miloš Trišić (RA39/2023)
+Ovaj projekat predstavlja sveobuhvatnu analizu i modelovanje vremenskih serija indeksa **S&P 500**, sa fokusom na **logaritamske prinose (log-returns)** umesto direktnog predviđanja cena.
 
-Projekat iz predmeta: Numerički algoritmi i numerički softver (NANS)
+Log-prinosi su statistički pogodniji za modelovanje jer su bliži stacionarnosti i omogućavaju pouzdaniju procenu tržišnog rizika.
 
-📊 Pregled projekta
-Cilj rada je evaluacija različitih pristupa predikciji finansijskih kretanja:
+**Autor**: Miloš Trišić (RA39/2023)<br>
+**Predmet**: Numerički algoritmi i numerički softver (NANS)<br>
+**Fakultet**: Fakultet tehničkih nauka<br>
 
-Linearno modelovanje (ARIMA) za identifikaciju autokorelacione strukture.
+📊 **Pregled projekta**
 
-Nelinearno modelovanje (Facebook Prophet) za prepoznavanje sezonalnosti.
+Cilj rada je evaluacija različitih pristupa modelovanju i predikciji finansijskih kretanja:
 
-Modelovanje volatilnosti (GARCH) radi procene tržišnog rizika.
+**ARIMA** – linearno modelovanje i analiza autokorelacione strukture
 
-Deskriptivna PCA analiza za razumevanje strukture tržišta i doprinosa različitih sektora ukupnoj varijansi.
+**Facebook Prophet** – identifikacija trenda i sezonalnosti
 
-🛠 Tehnologije i biblioteke
-Jezik: Python 3.x
+**GARCH** – modelovanje volatilnosti i procena tržišnog rizika
 
-Analiza podataka: Pandas, NumPy
+**PCA analiza** – razumevanje strukture tržišta i sektorskih doprinosa varijansi
 
-Vremenske serije: Statsmodels, pmdarima, Prophet, arch (GARCH modeli)
+🛠 **Tehnologije i biblioteke**
 
-Mašinsko učenje: Scikit-learn (PCA analiza)
+**Python 3.x**
 
-Vizuelizacija: Matplotlib, Seaborn
+**Pandas**, **NumPy** – obrada i manipulacija podataka
 
-📂 Struktura projekta
-Projekat je organizovan modularno radi lakšeg održavanja i testiranja:
+**Statsmodels**, **pmdarima** – ARIMA modeli
 
-notebook.ipynb — Glavni Jupyter Notebook sa celokupnim tokom analize i interpretacijom rezultata.
+**Prophet** – nelinearno modelovanje
 
-preprocessing.py — Učitavanje podataka, izračunavanje log-returns i hronološka podela na train/val/test skupove.
+**arch** – GARCH modeli
 
-stationarity.py — ADF testovi i analiza ACF/PACF funkcija.
+**Scikit-learn** – PCA analiza
 
-arima_model.py — Implementacija ARIMA modela sa walk-forward validacijom.
+**Matplotlib, Seaborn** – vizuelizacija
 
-prophet_model.py — Implementacija Facebook Prophet modela.
+📂 **Struktura projekta**
 
-garch_model.py — Modelovanje volatilnosti na rezidualima ARIMA modela.
+Projekat je organizovan modularno radi preglednosti i lakšeg održavanja:
 
-pca_analysis.py — Analiza glavnih komponenti nad prinosima pojedinačnih akcija.
+notebook.ipynb – kompletan tok analize i interpretacija rezultata
 
-evaluation.py — Centralizovane metrike (MAE, RMSE, MASE).
+preprocessing.py – učitavanje podataka i izračunavanje log-prinosa
 
-📈 Ključni rezultati i zaključci
-Efikasnost tržišta: Potvrđeno je da su log-returns veoma bliski "belom šumu", što otežava linearnu predikciju, ali omogućava precizno modelovanje rizika kroz GARCH.
+stationarity.py – ADF test i ACF/PACF analiza
 
-Walk-Forward Validacija: Modeli su testirani simulacijom realnog trgovanja, gde se model konstantno ažurira novim podacima.
+arima_model.py – ARIMA sa walk-forward validacijom
 
-MASE Metrika: Korišćena je Mean Absolute Scaled Error kako bi se utvrdilo da li su modeli zaista bolji od najjednostavnijeg "naivnog" pogađanja.
+prophet_model.py – implementacija Prophet modela
 
-PCA uvid: Analiza je pokazala da PC1 (prva glavna komponenta) predstavlja opšti tržišni rizik, dok PC2 jasno razdvaja defanzivne sektore (Utilities) od cikličnih (Energy, Industrials).
+garch_model.py – modelovanje volatilnosti
 
-🚀 Kako pokrenuti projekat
-Klonirajte repozitorijum:
+pca_analysis.py – analiza glavnih komponenti
+
+evaluation.py – centralizovane metrike (MAE, RMSE, MASE)
+
+📈 **Ključni rezultati i zaključci**
+
+**Efikasnost tržišta**: Log-prinosi su veoma bliski belom šumu, što ograničava linearnu predikciju.
+
+**Volatilnost**: Uočeno je klasterovanje volatilnosti, uspešno modelovano GARCH(1,1) modelom.
+
+**Walk-forward validacija**: Simulira realne uslove i eliminiše look-ahead bias.
+
+**MASE metrika**: Omogućava poređenje modela sa naivnim pristupom.
+
+**PCA analiza**: Prva glavna komponenta (PC1) predstavlja opšti tržišni faktor, dok PC2 razdvaja defanzivne i ciklične sektore.
+
+🚀 **Pokretanje projekta**
+
+Kloniranje repozitorijuma:
 
 git clone https://github.com/vas-username/sp500-analysis.git
-Instalirajte potrebne biblioteke:
+cd sp500-analysis
+
+Instalacija biblioteka:
 
 pip install pandas numpy statsmodels pmdarima prophet arch scikit-learn matplotlib seaborn
-Pokrenite notebook.ipynb kroz Jupyter ili VS Code.
 
+Pokretanje analize:
+
+jupyter notebook
 📝 Licenca
-Ovaj projekat je urađen u svrhe akademskog istraživanja na Fakultetu tehničkih nauka.
+
+Projekat je realizovan u svrhe akademskog istraživanja na Fakultetu tehničkih nauka.
