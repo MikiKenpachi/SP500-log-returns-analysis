@@ -21,7 +21,7 @@ VAL_END     = "2023-12-31"
 
 def load_index(filepath: str) -> pd.DataFrame:
     """
-    Učitavamo sp500_index.csv i vraćamo DataFrame sa:
+    Učitava sp500_index.csv i vraća DataFrame sa:
       - DatetimeIndex (Date)
       - kolonom 'S&P500' (float)
       - kolonom 'log_return' (float): ln(P_t / P_{t-1})
@@ -29,7 +29,11 @@ def load_index(filepath: str) -> pd.DataFrame:
     Nedostajući datumi (vikendi, praznici) su prirodno odsutni –
     ne vrši se reindeksiranje jer modeli rade na trading-day frekvenciji.
     """
-    df = pd.read_csv(filepath, parse_dates=["Date"], index_col="Date",)
+    df = pd.read_csv(
+        filepath,
+        parse_dates=["Date"],
+        index_col="Date",
+    )
 
     # Proveravamo da li postoje duplikati datuma
     if df.index.duplicated().any():

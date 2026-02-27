@@ -11,6 +11,8 @@ import matplotlib.pyplot as plt
 
 from statsmodels.tsa.stattools import adfuller, acf, pacf
 from statsmodels.graphics.tsaplots import plot_acf, plot_pacf
+from statsmodels.stats.diagnostic import acorr_ljungbox
+from scipy.stats import norm  # za runs test z-statistiku
 
 
 def adf_test(series: pd.Series, naziv: str = "Serija") -> dict:
@@ -142,6 +144,145 @@ def plot_acf_pacf_comparison(series_dict: dict, lags: int = 40) -> None:
                  fontsize=13, fontweight='bold', y=1.01)
     plt.tight_layout()
     plt.show()
+
+
+def ljungbox_white_noise_test(series: pd.Series,
+                              naziv: str = "Serija",
+                              lags:  list = None) -> dict:
+    """
+    Ljung-Box test na originalnoj seriji prinosa – H0: serija je beli šum.
+    
+    VAŽNA RAZLIKA: ovo se radi na originalnoj seriji (log-returns),
+    NE na rezidualima ARIMA modela! Cilj je da formalno potvrdimo
+    (ili odbacimo) hipotezu da su sami prinosi beli šum.
+    
+    Interpretacija:
+      p > 0.05 → ne možemo odbaciti H0 → serija je statistički beli šum
+      p ≤ 0.05 → odbacujemo H0 → postoji linearna autokorelacija
+
+    """
+    if lags is None:
+        n = len(series.dropna())
+        # Heuristika: testiramo na log(n), 10, 20 lagovima
+        lags = sorted(set([int(np.log(n)), 10, 20, 30]))
+        lags = [l for l in lags if l > 0 and l < n // 2]
+
+    series_clean = series.dropna()
+    lb = acorr_ljungbox(series_clean, lags=lags, return_df=True)
+
+    print(f"{'─' * 60}")
+    print(f"  Ljung-Box test belog šuma – {naziv}")
+    print(f"{'─' * 60}")
+    print(f"  H0: serija je beli šum (nema linearne autokorelacije)")
+    print(f"  N  = {len(series_clean)} opservacija\n")
+    print(lb.to_string())
+
+    sve_p = lb['lb_pvalue'].values
+    beli_sum = all(p > 0.05 for p in sve_p)
+    granicni  = any(0.01 < p <= 0.05 for p in sve_p)
+
+    if beli_sum:
+        zakljucak = "NE ODBACUJEMO H0 → serija statistički nije razlikovana od belog šuma"
+    elif granicni:
+        zakljucak = "GRANIČNI SLUČAJ → neke p-vrednosti su bliske 0.05"
+    else:
+        zakljucak = "ODBACUJEMO H0 → postoji statistički značajna linearna autokorelacija"
+
+    print(f"\n  Zaključak: {zakljucak}")
+    print(f"{'─' * 60}\n")
+
+    return {
+        "ljungbox_tabela": lb,
+        "beli_sum":        beli_sum,
+        "zakljucak":       zakljucak,
+        "lags_testirani":  lags,
+    }
+
+
+def runs_test_white_noise(series: pd.Series, naziv: str = "Serija") -> dict:
+    """
+    Runs (Wald-Wolfowitz) test slučajnosti – H0: serija je slučajna.
+    
+    Ovaj test je neparametarski i ne oslanja se na normalnost.
+    Testira da li su pozitivni [+] i negativni [-] prinosi nasumično raspoređeni.
+    Za razliku od Ljung-Box testa (koji testira linearnu autokorelaciju),
+    runs test testira opštu slučajnost niza znakova.
+    
+    """
+    series_clean = series.dropna()
+    # Klasifikujemo prinos kao pozitivan (1) ili negativan (0)
+    znakovi = (series_clean > series_clean.median()).astype(int).values
+
+    n_total    = len(znakovi)
+    n_positive = znakovi.sum()
+    n_negative = n_total - n_positive
+
+    # Broji runs (uzastopni isti znakovi)
+    runs = 1 + np.sum(znakovi[1:] != znakovi[:-1])
+
+    # Z-statistika runs testa
+    mu_r    = (2 * n_positive * n_negative) / n_total + 1
+    sigma_r = np.sqrt(
+        (2 * n_positive * n_negative * (2 * n_positive * n_negative - n_total))
+        / (n_total ** 2 * (n_total - 1))
+    )
+    z_stat = (runs - mu_r) / sigma_r if sigma_r > 0 else 0.0
+
+    p_value = 2 * (1 - norm.cdf(abs(z_stat)))
+
+    slucajno = p_value > 0.05
+    zakljucak = (
+        "NE ODBACUJEMO H0 → niz je slučajan (runs test)"
+        if slucajno else
+        "ODBACUJEMO H0 → postoji struktura u nizu znakova"
+    )
+
+    print(f"{'─' * 60}")
+    print(f"  Runs test slučajnosti – {naziv}")
+    print(f"{'─' * 60}")
+    print(f"  N ukupno       : {n_total}")
+    print(f"  N pozitivnih   : {n_positive}")
+    print(f"  N negativnih   : {n_negative}")
+    print(f"  Broj runs-ova  : {runs:.0f}  (očekivano: {mu_r:.1f})")
+    print(f"  Z-statistika   : {z_stat:.4f}")
+    print(f"  p-vrednost     : {p_value:.6f}")
+    print(f"  Zaključak      : {zakljucak}")
+    print(f"{'─' * 60}\n")
+
+    return {
+        "runs":       int(runs),
+        "z_stat":     round(z_stat, 4),
+        "p_value":    round(p_value, 6),
+        "slucajno":   slucajno,
+        "zakljucak":  zakljucak,
+    }
+
+
+def white_noise_summary(series: pd.Series, naziv: str = "Log-returns") -> None:
+    """
+    Kompletna analiza belog šuma: Ljung-Box + Runs test + zaključak.
+    Ovo je centralna funkcija za tačku 1 ispravke projekta.
+    """
+    print(f"\n{'═' * 60}")
+    print(f"  ANALIZA BELOG ŠUMA: {naziv}")
+    print(f"{'═' * 60}\n")
+
+    lb_res   = ljungbox_white_noise_test(series, naziv)
+    runs_res = runs_test_white_noise(series, naziv)
+
+    print(f"\n{'═' * 60}")
+    print(f"  REKAPITULACIJA:")
+    print(f"    Ljung-Box: {lb_res['zakljucak']}")
+    print(f"    Runs test: {runs_res['zakljucak']}")
+
+    oba_potvrdjuju = lb_res['beli_sum'] and runs_res['slucajno']
+    if oba_potvrdjuju:
+        print(f"\n  → Oba testa podržavaju hipotezu o belom šumu.")
+        print(f"    Ovo je konzistentno sa Hipotezom efikasnog tržišta (EMH).")
+    else:
+        print(f"\n  → Testovi daju mešovite ili negativne rezultate.")
+        print(f"    Moguće je da postoji neka (slaba) linearna ili nelinearna struktura.")
+    print(f"{'═' * 60}\n")
 
 
 def suggest_arima_params(series: pd.Series,

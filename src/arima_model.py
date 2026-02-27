@@ -3,9 +3,6 @@ arima_model.py
 --------------
 ARIMA model za predikciju log-returns S&P 500.
 
-Napomena: log-returns su bliske belom šumu (EMH), pa ARIMA
-neće dati niske greške u apsolutnom smislu. Cilj je da ispitamo
-linearnu strukturu i da dobijemo rezidualne greške za GARCH.
 """
 
 import pandas as pd
@@ -18,6 +15,71 @@ warnings.filterwarnings('ignore')
 from statsmodels.tsa.arima.model import ARIMA
 from statsmodels.stats.diagnostic import acorr_ljungbox
 import pmdarima as pm
+
+
+def grid_search_arima(series:  pd.Series,
+                      max_p:   int = 4,
+                      max_q:   int = 4,
+                      d:       int = 0,
+                      ic:      str = 'aic') -> pd.DataFrame:
+    """
+    Eksplicitni grid search kombinacija ARIMA(p, d, q).
+    
+    Umesto da slepo verujemo auto_arima, ovde sami prolazimo kroz
+    kombinacije p i q (uz fiksiran d=0 iz ADF testa) i poredimo
+    AIC/BIC vrednosti. Ovo daje bolji uvid u stabilnost odabira.
+    
+    Preporučena upotreba:
+      1. Pokrenite suggest_arima_params() iz stationarity.py za heuristiku
+      2. Ograničite pretragu oko tih vrednosti (npr. max_p=4, max_q=4)
+      3. Uporedite top modele – ako su AIC vrednosti bliske, preferirati
+         model sa manjim p+q (radi manje složenosti modela)
+    
+    Heuristike za interpretaciju tabele:
+      - ACF nagli pad posle lag q  → čist MA(q) model
+      - PACF nagli pad posle lag p → čist AR(p) model
+      - Oba postepeni pad          → ARMA(p,q), probajte (1,1), (2,1) itd.
+    """
+    print(f"Grid search ARIMA(p,{d},q) za p∈[0,{max_p}], q∈[0,{max_q}]...")
+    print(f"Kriterijum odabira: {ic.upper()}\n")
+
+    rezultati = []
+
+    for p in range(0, max_p + 1):
+        for q in range(0, max_q + 1):
+            if p == 0 and q == 0:
+                continue  # ARIMA(0,0,0) nema smisla
+            try:
+                model  = ARIMA(series.dropna(), order=(p, d, q)).fit()
+                aic    = model.aic
+                bic    = model.bic
+                # Ljung-Box na rezidualima – da li su reziduali beli šum?
+                lb_p = acorr_ljungbox(model.resid, lags=[10], return_df=True)['lb_pvalue'].values[0]
+                konvergirao = True
+            except Exception:
+                aic, bic, lb_p, konvergirao = np.nan, np.nan, np.nan, False
+
+            rezultati.append({
+                "p": p, "d": d, "q": q,
+                "AIC":       round(aic,  2) if not np.isnan(aic)  else np.nan,
+                "BIC":       round(bic,  2) if not np.isnan(bic)  else np.nan,
+                "LB_p(10)":  round(lb_p, 4) if not np.isnan(lb_p) else np.nan,
+                "konvergirao": konvergirao,
+            })
+
+    df = pd.DataFrame(rezultati).dropna(subset=['AIC', 'BIC'])
+    df = df[df['konvergirao']].drop(columns='konvergirao')
+    df = df.sort_values(ic.upper()).reset_index(drop=True)
+
+    print(f"Top 10 modela po {ic.upper()}:")
+    print(df.head(10).to_string(index=False))
+
+    best = df.iloc[0]
+    print(f"\n→ Optimalni po {ic.upper()}: ARIMA({int(best.p)},{d},{int(best.q)})")
+    print(f"  AIC={best.AIC}, BIC={best.BIC}")
+    print(f"  Napomena: ako je LB_p(10) < 0.05, reziduali NISU beli šum.")
+
+    return df
 
 
 def auto_arima_search(series:   pd.Series,
@@ -93,14 +155,14 @@ def walk_forward_predict(train: pd.Series,
     p, d, q = order
     print(f"Walk-forward validacija – ARIMA({p},{d},{q}), {len(test)} predikcija")
 
-    historija = list(train.dropna().values)
+    istorija = list(train.dropna().values)
     predikcije, prave, lower_ci, upper_ci, datumi = [], [], [], [], []
 
     for i, (datum, prava_vrednost) in enumerate(test.items()):
 
         # fitujemo model na trenutnoj istoriji
         if refit or i == 0:
-            model  = ARIMA(historija, order=order)
+            model  = ARIMA(istorija, order=order)
             fitted = model.fit()
 
         # predikcija za sledeći korak
@@ -115,9 +177,9 @@ def walk_forward_predict(train: pd.Series,
         datumi.append(datum)
 
         # dodajemo pravu vrednost i refitujemo za sledeći korak
-        historija.append(prava_vrednost)
+        istorija.append(prava_vrednost)
         if not refit and i < len(test) - 1:
-            model  = ARIMA(historija, order=order)
+            model  = ARIMA(istorija, order=order)
             fitted = model.fit()
 
         if (i + 1) % 50 == 0:

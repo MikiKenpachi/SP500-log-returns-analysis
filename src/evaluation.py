@@ -69,6 +69,114 @@ def compare_models(results: list[pd.DataFrame]) -> pd.DataFrame:
     return pd.concat(results, ignore_index=True).set_index("Model")
 
 
+def log_return_to_price(log_returns_pred: pd.Series,
+                        poslednja_cena:   float) -> pd.Series:
+    """
+    Konvertuje predviđene log-returns u apsolutne cene indeksa.
+    
+    Matematika:
+      log_return_t = ln(P_t / P_{t-1})
+      ⟹ P_t = P_{t-1} * exp(log_return_t)
+    
+    Kumulativno za niz predikcija:
+      P_t = P_0 * exp(Σ log_return_i)  za i=1..t
+    
+    Parametri:
+      log_returns_pred : predviđeni log-returns (pd.Series sa DatetimeIndex)
+      poslednja_cena   : poslednja poznata cena pre perioda predikcije (P_0)
+    
+    Napomena o interpretaciji:
+      - Pozitivan log-return od 0.01 ≈ rast od ~1% (exp(0.01) ≈ 1.01005)
+      - Negativan log-return od -0.02 ≈ pad od ~2%
+      - Za male vrednosti: log_return ≈ prosta stopa prinosa
+    """
+    # Kumulativni log-returns od polazne tačke
+    kumulativni = log_returns_pred.cumsum()
+    cene = poslednja_cena * np.exp(kumulativni)
+    return cene
+
+
+def interpret_log_returns(log_returns_true: pd.Series,
+                          log_returns_pred:  pd.Series,
+                          poslednja_cena:    float,
+                          model_name:        str = "ARIMA") -> pd.DataFrame:
+    """
+    Kompletna interpretabilna tabela predikcija.
+    
+    Za svaki dan prikazuje:
+      - Predviđeni log-return (sirova predikcija modela)
+      - Predviđenu prostu stopu prinosa (% promena) – lakša za intuiciju
+      - Predviđenu cenu indeksa
+      - Stvarnu cenu indeksa
+      - Grešku u ceni (EUR/USD razlika)
+    """
+    df = pd.DataFrame({
+        'log_return_stvarni':  log_returns_true.values,
+        'log_return_predviđen': log_returns_pred.values,
+    }, index=log_returns_true.index)
+
+    # Prosta stopa prinosa ≈ exp(r) - 1 (lakša za intuiciju od log-returna)
+    df['prosta_stopa_pred_%'] = (np.exp(df['log_return_predviđen']) - 1) * 100
+    df['prosta_stopa_stvarna_%'] = (np.exp(df['log_return_stvarni']) - 1) * 100
+
+    # Konverzija na cene
+    df['cena_predviđena'] = poslednja_cena * np.exp(df['log_return_predviđen'].cumsum())
+    df['cena_stvarna']    = poslednja_cena * np.exp(df['log_return_stvarni'].cumsum())
+    df['greška_cene']     = df['cena_predviđena'] - df['cena_stvarna']
+
+    return df.round(4)
+
+
+def plot_price_interpretation(df_interpret: pd.DataFrame,
+                               model_name:   str = "ARIMA") -> None:
+    """
+    Dvostruki grafik: gore cene, dole log-returns.
+    Pomaže u interpretaciji predikcija – pokazuje i 'sirove' log-returns
+    i njihov efekat na cenu indeksa.
+    """
+    fig, axes = plt.subplots(2, 1, figsize=(14, 9), sharex=True)
+
+    # Gornji panel: cena indeksa
+    axes[0].plot(df_interpret.index, df_interpret['cena_stvarna'],
+                 color='#2c3e50', linewidth=1.2, label='Stvarna cena')
+    axes[0].plot(df_interpret.index, df_interpret['cena_predviđena'],
+                 color='#e74c3c', linewidth=1.2, linestyle='--',
+                 label=f'Predviđena cena ({model_name})')
+    axes[0].set_title('Cena indeksa – stvarna vs predviđena', fontsize=12, fontweight='bold')
+    axes[0].set_ylabel('Cena indeksa')
+    axes[0].legend()
+
+    # Donji panel: log-returns
+    axes[1].plot(df_interpret.index, df_interpret['log_return_stvarni'],
+                 color='#2c3e50', linewidth=0.9, label='Stvarni log-return')
+    axes[1].plot(df_interpret.index, df_interpret['log_return_predviđen'],
+                 color='#e74c3c', linewidth=0.9, linestyle='--',
+                 label=f'Predviđeni log-return ({model_name})')
+    axes[1].axhline(0, color='black', linewidth=0.5)
+    axes[1].set_title('Log-returns – stvarni vs predviđeni', fontsize=12, fontweight='bold')
+    axes[1].set_ylabel('Log-return  [≈ % promena / 100]')
+    axes[1].set_xlabel('Datum')
+    axes[1].legend()
+
+    axes[1].xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m'))
+    axes[1].xaxis.set_major_locator(mdates.MonthLocator(interval=2))
+    plt.xticks(rotation=45)
+    plt.tight_layout()
+    plt.show()
+
+    # Kratak opis za čitaoce
+    print("Napomena o interpretaciji log-returns:")
+    print("  log_return_t = ln(P_t / P_{t-1})")
+    print("  Za male vrednosti: log_return ≈ procentualna promena / 100")
+    print("  Primer: log_return = 0.012 → cena porasla ~1.2%")
+    print("  Primer: log_return = -0.020 → cena pala ~2.0%")
+    print()
+    print(f"  Opseg predviđenih log-returns: [{df_interpret['log_return_predviđen'].min():.4f}, "
+          f"{df_interpret['log_return_predviđen'].max():.4f}]")
+    greska_pct = (df_interpret['greška_cene'].abs() / df_interpret['cena_stvarna'] * 100).mean()
+    print(f"  Prosečna apsolutna greška u ceni: {greska_pct:.2f}%")
+
+
 def plot_predictions(y_true:  pd.Series,
                      y_pred:  pd.Series,
                      model_name: str,
