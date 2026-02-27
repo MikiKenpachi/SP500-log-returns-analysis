@@ -1,5 +1,5 @@
 Analiza i predikcija kratkoročnih logaritamskih prinosa S&P 500 indeksa
-Ovaj projekat predstavlja sveobuhvatnu analizu i modelovanje vremenskih serija S&P 500 indeksa. Fokus nije na direktnom predviđanju cena, već na logaritamskim prinosima (log-returns), koji su statistički stabilniji za modelovanje i ključni za procenu rizika u finansijama.
+Ovaj projekat predstavlja sveobuhvatnu analizu i modelovanje vremenskih serija S&P 500 indeksa. Fokus nije na direktnom predviđanju originalnih cena, već na logaritamskim prinosima (log-returns), koji su statistički stabilniji za modelovanje i ključni za procenu rizika u finansijama.
 
 Autor: Miloš Trišić (RA39/2023)
 
@@ -58,11 +58,9 @@ PCA uvid: Analiza je pokazala da PC1 (prva glavna komponenta) predstavlja opšti
 🚀 Kako pokrenuti projekat
 Klonirajte repozitorijum:
 
-Bash
 git clone https://github.com/vas-username/sp500-analysis.git
 Instalirajte potrebne biblioteke:
 
-Bash
 pip install pandas numpy statsmodels pmdarima prophet arch scikit-learn matplotlib seaborn
 Pokrenite notebook.ipynb kroz Jupyter ili VS Code.
 
